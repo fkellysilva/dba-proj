@@ -2,6 +2,8 @@ from flask import Blueprint, jsonify
 import mysql.connector
 from ZODB import DB
 from ZODB.FileStorage import FileStorage
+import os
+from contextlib import contextmanager
 
 product_bp = Blueprint('product', __name__)
 
@@ -13,11 +15,18 @@ def get_mysql_connection():
         database="VarejoBase"
     )
 
+@contextmanager
 def get_zodb_connection():
-    storage = FileStorage('products.fs')
+    os.makedirs('data', exist_ok=True)
+    storage = FileStorage('data/products.fs')
     db = DB(storage)
     connection = db.open()
-    return connection
+    try:
+        yield connection
+    finally:
+        connection.close()
+        db.close()
+        storage.close()
 
 @product_bp.route('/', methods=['GET'])
 def listar_produtos():
@@ -49,28 +58,25 @@ def listar_produtos():
 def detalhes_produto(codigo_produto):
     try:
         # Get product details from ZODB
-        zodb_conn = get_zodb_connection()
-        root = zodb_conn.root()
-        zodb_products = root.get('products', {})
-        
-        if codigo_produto not in zodb_products:
+        with get_zodb_connection() as zodb_conn:
+            root = zodb_conn.root()
+            zodb_products = root.get('products', {})
+            
+            if codigo_produto not in zodb_products:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Produto não encontrado'
+                }), 404
+            
+            product = zodb_products[codigo_produto]
+            
             return jsonify({
-                'status': 'error',
-                'message': 'Produto não encontrado'
-            }), 404
-        
-        product = zodb_products[codigo_produto]
-        
-        return jsonify({
-            'status': 'success',
-            'data': product.to_dict()
-        })
+                'status': 'success',
+                'data': product.to_dict()
+            })
         
     except Exception as e:
         return jsonify({
             'status': 'error',
             'message': str(e)
-        }), 500
-    finally:
-        if 'zodb_conn' in locals():
-            zodb_conn.close() 
+        }), 500 

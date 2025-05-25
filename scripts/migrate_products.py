@@ -17,12 +17,14 @@ def get_mysql_connection():
     )
 
 def migrate_products():
+    os.makedirs('data', exist_ok=True)
+    storage = FileStorage('data/products.fs')
+    
     # Connect to MySQL
     mysql_conn = get_mysql_connection()
     cursor = mysql_conn.cursor(dictionary=True)
     
     # Connect to ZODB
-    storage = FileStorage('products.fs')
     db = DB(storage)
     connection = db.open()
     root = connection.root()

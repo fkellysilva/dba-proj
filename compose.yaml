@@ -37,6 +37,7 @@ services:
     container_name: python_app
     volumes:
       - .:/app
+      - zodb_data:/app/data
     working_dir: /app
     depends_on:
       - mysql
@@ -50,6 +51,8 @@ volumes:
   mysql_data:
     driver: local
   mongodb_data:
+    driver: local
+  zodb_data:
     driver: local
 
 networks:
