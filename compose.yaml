@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword # Change this in production!
+      MYSQL_DATABASE: VarejoBase
+      MYSQL_USER: user
+      MYSQL_PASSWORD: userpassword # Change this in production!
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - app_network
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpassword # Change this in production!
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - app_network
+
+  python:
+    build: .
+    container_name: python_app
+    volumes:
+      - .:/app
+    working_dir: /app
+    depends_on:
+      - mysql
+      - mongodb
+    networks:
+      - app_network
+    ports:
+      - "3333:3333"
+
+volumes:
+  mysql_data:
+    driver: local
+  mongodb_data:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge
