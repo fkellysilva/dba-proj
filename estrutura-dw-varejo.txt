@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS dim_tempo (
-    id_tempo INT PRIMARY KEY,
-    data DATE NOT NULL,
+    id_tempo INT PRIMARY KEY AUTO_INCREMENT,
+    data DATE,
     dia INT,
     mes INT,
     ano INT,
@@ -8,23 +8,30 @@ CREATE TABLE IF NOT EXISTS dim_tempo (
     dia_semana VARCHAR(10)
 );
 
+CREATE TABLE IF NOT EXISTS dim_categoria (
+    id_categoria INT PRIMARY KEY AUTO_INCREMENT,
+    nome_categoria VARCHAR(50),
+    descricao TEXT
+);
+
 CREATE TABLE IF NOT EXISTS dim_produto (
-    id_produto INT PRIMARY KEY,
+    id_produto INT PRIMARY KEY AUTO_INCREMENT,
     nome_produto VARCHAR(100),
     marca VARCHAR(50),
-    categoria VARCHAR(50),
-    unidade_medida VARCHAR(20)
+    id_categoria INT,
+    unidade_medida VARCHAR(20),
+    FOREIGN KEY (id_categoria) REFERENCES dim_categoria(id_categoria)
 );
 
 CREATE TABLE IF NOT EXISTS dim_loja (
-    id_loja INT PRIMARY KEY,
+    id_loja INT PRIMARY KEY AUTO_INCREMENT,
     nome_loja VARCHAR(50),
     cidade VARCHAR(50),
     estado CHAR(2)
 );
 
 CREATE TABLE IF NOT EXISTS dim_cliente (
-    id_cliente INT PRIMARY KEY,
+    id_cliente INT PRIMARY KEY AUTO_INCREMENT,
     nome_cliente VARCHAR(100),
     cidade VARCHAR(50),
     estado CHAR(2)
@@ -34,6 +41,7 @@ CREATE TABLE IF NOT EXISTS fato_vendas (
     id_fato INT PRIMARY KEY AUTO_INCREMENT,
     id_tempo INT,
     id_produto INT,
+    id_categoria INT,
     id_loja INT,
     id_cliente INT,
     quantidade INT,
@@ -43,22 +51,39 @@ CREATE TABLE IF NOT EXISTS fato_vendas (
     
     FOREIGN KEY (id_tempo) REFERENCES dim_tempo(id_tempo),
     FOREIGN KEY (id_produto) REFERENCES dim_produto(id_produto),
+    FOREIGN KEY (id_categoria) REFERENCES dim_categoria(id_categoria),
     FOREIGN KEY (id_loja) REFERENCES dim_loja(id_loja),
     FOREIGN KEY (id_cliente) REFERENCES dim_cliente(id_cliente)
 );
 
-CREATE TABLE IF NOT EXISTS dim_categoria (
-    id_categoria INT PRIMARY KEY,
-    nome_categoria VARCHAR(50),
-    descricao TEXT
+CREATE TABLE IF NOT EXISTS fato_precos (
+    id_fato INT PRIMARY KEY AUTO_INCREMENT,
+    id_tempo INT,
+    id_produto INT,
+    id_categoria INT,
+    preco_normal DECIMAL(10,2),
+    preco_promocional DECIMAL(10,2),
+    preco_compra DECIMAL(10,2),
+    margem_lucro DECIMAL(5,2),
+    em_promocao BOOLEAN,
+    
+    FOREIGN KEY (id_tempo) REFERENCES dim_tempo(id_tempo),
+    FOREIGN KEY (id_produto) REFERENCES dim_produto(id_produto),
+    FOREIGN KEY (id_categoria) REFERENCES dim_categoria(id_categoria)
 );
 
--- updated version
-CREATE TABLE IF NOT EXISTS dim_produto (
-    id_produto INT PRIMARY KEY,
-    nome_produto VARCHAR(100),
-    marca VARCHAR(50),
-    id_categoria INT,
-    unidade_medida VARCHAR(20),
-    FOREIGN KEY (id_categoria) REFERENCES dim_categoria(id_categoria)
+CREATE TABLE IF NOT EXISTS fato_estoque (
+    id_fato INT PRIMARY KEY AUTO_INCREMENT,
+    id_tempo INT,
+    id_produto INT,
+    id_loja INT,
+    quantidade_atual INT,
+    quantidade_minima INT,
+    quantidade_maxima INT,
+    dias_estoque INT,
+    status_estoque VARCHAR(20),
+    
+    FOREIGN KEY (id_tempo) REFERENCES dim_tempo(id_tempo),
+    FOREIGN KEY (id_produto) REFERENCES dim_produto(id_produto),
+    FOREIGN KEY (id_loja) REFERENCES dim_loja(id_loja)
 );

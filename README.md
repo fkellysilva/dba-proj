@@ -70,7 +70,7 @@ Para verificar se os bancos foram criados corretamente:
 
 ```bash
 # Verificar bancos MySQL
-docker exec mysql_db mysql -u root -prootpassword -e "SHOW DATABASES;"
+docker exec -i mysql_db mysql -u root -prootpassword -e "SHOW DATABASES;"
 
 # Você deve ver tanto VarejoBase quanto DW_Varejo na lista
 ```
@@ -79,10 +79,10 @@ docker exec mysql_db mysql -u root -prootpassword -e "SHOW DATABASES;"
 
 ```bash
 # Aplicar a estrutura do banco VarejoBase
-docker exec mysql_db mysql -u root -prootpassword VarejoBase < estrutura-varejo-base.txt
+docker exec -i mysql_db mysql -u root -prootpassword VarejoBase < estrutura-varejo-base.txt
 
 # Inserir dados iniciais
-docker exec mysql_db mysql -u root -prootpassword VarejoBase < inserts-varejo-base.txt
+docker exec -i mysql_db mysql -u root -prootpassword VarejoBase < inserts-varejo-base.txt
 ```
 
 ### 4. Migração de Produtos para ZODB
@@ -121,7 +121,7 @@ db.product_images.find({ "product_code": "ELET003" })
 
 ```bash
 # Criar estrutura do DW
-docker exec mysql_db mysql -u root -prootpassword DW_Varejo < estrutura-dw-varejo.txt
+docker exec -i mysql_db mysql -u root -prootpassword DW_Varejo < estrutura-dw-varejo.txt
 
 # Executar processo ETL
 docker compose exec python python scripts/etl_dw.py

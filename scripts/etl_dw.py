@@ -1,7 +1,8 @@
 import mysql.connector
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import calendar
+import os
 
 # Database connection settings
 SOURCE_CONFIG = {
@@ -75,10 +76,10 @@ def load_dim_produto(src_cursor, dw_conn):
     for prod in produtos:
         cursor.execute("""
         INSERT IGNORE INTO dim_produto 
-        (id_produto, nome_produto, marca, categoria, unidade_medida)
+        (id_produto, nome_produto, marca, id_categoria, unidade_medida)
         VALUES (%s, %s, %s, %s, %s)
         """, (prod['id_produto'], prod['nome_produto'], prod['marca'], 
-              prod['nome_categoria'], prod['unidade_medida']))
+              prod['id_categoria'], prod['unidade_medida']))
     
     dw_conn.commit()
 
@@ -148,47 +149,157 @@ def load_fato_vendas(src_cursor, dw_conn):
     
     dw_conn.commit()
 
-def main():
-    start_time = datetime.now()
-    print(f"Starting ETL process at {start_time}")
+def load_fato_precos(src_cursor, dw_conn):
+    cursor = dw_conn.cursor()
+    
+    # Extract price data from products, promotions and suppliers
+    src_cursor.execute("""
+        SELECT 
+            p.id_produto,
+            p.id_categoria,
+            p.preco_atual as preco_normal,
+            pp.preco_promocional,
+            pf.preco_compra,
+            CASE 
+                WHEN pp.preco_promocional IS NOT NULL 
+                THEN ((p.preco_atual - pp.preco_promocional) / p.preco_atual) * 100
+                ELSE ((p.preco_atual - pf.preco_compra) / p.preco_atual) * 100
+            END as margem_lucro,
+            pp.id_promocao IS NOT NULL as em_promocao,
+            CURDATE() as data_atual
+        FROM produto p
+        LEFT JOIN produto_promocao pp ON p.id_produto = pp.id_produto
+        LEFT JOIN produto_fornecedor pf ON p.id_produto = pf.id_produto
+        WHERE p.ativo = TRUE
+    """)
+    precos = src_cursor.fetchall()
+    
+    for preco in precos:
+        # Get or create time dimension record
+        data = preco['data_atual']
+        id_tempo = int(data.strftime('%Y%m%d'))
+        
+        cursor.execute("""
+        INSERT INTO fato_precos 
+        (id_tempo, id_produto, id_categoria, preco_normal, 
+         preco_promocional, preco_compra, margem_lucro, em_promocao)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            id_tempo,
+            preco['id_produto'],
+            preco['id_categoria'],
+            preco['preco_normal'],
+            preco['preco_promocional'],
+            preco['preco_compra'],
+            preco['margem_lucro'],
+            preco['em_promocao']
+        ))
+    
+    dw_conn.commit()
 
+def load_fato_estoque(src_cursor, dw_conn):
+    cursor = dw_conn.cursor()
+    
+    # Extract inventory data
+    src_cursor.execute("""
+        SELECT 
+            e.*,
+            CURDATE() as data_atual,
+            COALESCE(
+                (SELECT SUM(iv.quantidade) 
+                 FROM item_venda iv 
+                 JOIN venda v ON iv.id_venda = v.id_venda 
+                 WHERE iv.id_produto = e.id_produto 
+                 AND v.id_loja = e.id_loja 
+                 AND v.data_venda >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                ), 0) as vendas_30_dias
+        FROM estoque e
+    """)
+    estoques = src_cursor.fetchall()
+    
+    for estoque in estoques:
+        # Get or create time dimension record
+        data = estoque['data_atual']
+        id_tempo = int(data.strftime('%Y%m%d'))
+        
+        # Calculate days of inventory
+        vendas_diarias = estoque['vendas_30_dias'] / 30
+        dias_estoque = int(estoque['quantidade_atual'] / vendas_diarias) if vendas_diarias > 0 else 999
+        
+        # Determine inventory status
+        if estoque['quantidade_atual'] <= estoque['quantidade_minima']:
+            status = 'Crítico' if estoque['quantidade_atual'] == 0 else 'Baixo'
+        elif estoque['quantidade_atual'] >= estoque['quantidade_maxima']:
+            status = 'Excesso'
+        else:
+            status = 'Normal'
+        
+        cursor.execute("""
+        INSERT INTO fato_estoque 
+        (id_tempo, id_produto, id_loja, quantidade_atual, 
+         quantidade_minima, quantidade_maxima, dias_estoque, status_estoque)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            id_tempo,
+            estoque['id_produto'],
+            estoque['id_loja'],
+            estoque['quantidade_atual'],
+            estoque['quantidade_minima'],
+            estoque['quantidade_maxima'],
+            dias_estoque,
+            status
+        ))
+    
+    dw_conn.commit()
+
+def get_mysql_connection(database):
+    return mysql.connector.connect(
+        host="mysql_db",
+        user=os.getenv('MYSQL_USER', 'user'),
+        password=os.getenv('MYSQL_PASSWORD', 'userpassword'),
+        database=database
+    )
+
+def etl_process():
     try:
-        # Connect to source and DW
-        src_conn, src_cursor = connect_to_db(SOURCE_CONFIG)
-        dw_conn, _ = connect_to_db(DW_CONFIG)
+        # Conexões com os bancos
+        source_conn = get_mysql_connection("VarejoBase")
+        dw_conn = get_mysql_connection("DW_Varejo")
+        
+        source_cursor = source_conn.cursor(dictionary=True)
+        dw_cursor = dw_conn.cursor(dictionary=True)
 
-        # Load dimensions
-        print("\nLoading time dimension...")
-        load_dim_tempo(dw_conn, '2020-01-01', '2024-12-31')  # Adjust date range as needed
+        # ETL para dimensões
+        print("Carregando dimensões...")
+        load_dim_categoria(source_cursor, dw_conn)
+        load_dim_produto(source_cursor, dw_conn)
+        load_dim_loja(source_cursor, dw_conn)
+        load_dim_cliente(source_cursor, dw_conn)
+        
+        # Carregar dimensão tempo com um período de 5 anos
+        start_date = datetime(2020, 1, 1)
+        end_date = datetime(2025, 12, 31)
+        load_dim_tempo(dw_conn, start_date, end_date)
 
-        print("\nLoading category dimension...")
-        load_dim_categoria(src_cursor, dw_conn)
+        # ETL para fatos
+        print("Carregando fatos...")
+        load_fato_vendas(source_cursor, dw_conn)
+        load_fato_precos(source_cursor, dw_conn)
+        load_fato_estoque(source_cursor, dw_conn)
 
-        print("\nLoading product dimension...")
-        load_dim_produto(src_cursor, dw_conn)
-
-        print("\nLoading store dimension...")
-        load_dim_loja(src_cursor, dw_conn)
-
-        print("\nLoading customer dimension...")
-        load_dim_cliente(src_cursor, dw_conn)
-
-        print("\nLoading sales fact table...")
-        load_fato_vendas(src_cursor, dw_conn)
-
-        end_time = datetime.now()
-        duration = end_time - start_time
-        print(f"\nETL Process Completed Successfully.")
-        print(f"Total duration: {duration}")
+        print("ETL concluído com sucesso!")
 
     except Exception as e:
         print(f"Error during ETL process: {str(e)}")
     finally:
-        # Close connections
-        if 'src_conn' in locals():
-            src_conn.close()
+        if 'source_cursor' in locals():
+            source_cursor.close()
+        if 'source_conn' in locals():
+            source_conn.close()
+        if 'dw_cursor' in locals():
+            dw_cursor.close()
         if 'dw_conn' in locals():
             dw_conn.close()
 
-if __name__ == '__main__':
-    main() 
+if __name__ == "__main__":
+    etl_process() 

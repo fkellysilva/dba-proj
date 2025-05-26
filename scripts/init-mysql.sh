@@ -9,8 +9,8 @@ done
 
 # Create both databases
 mysql -u root -p"$MYSQL_ROOT_PASSWORD" <<-EOSQL
-    CREATE DATABASE IF NOT EXISTS VarejoBase;
-    CREATE DATABASE IF NOT EXISTS DW_Varejo;
+    CREATE DATABASE IF NOT EXISTS VarejoBase CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+    CREATE DATABASE IF NOT EXISTS DW_Varejo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
     
     -- Grant privileges to the user for both databases
     GRANT ALL PRIVILEGES ON VarejoBase.* TO '$MYSQL_USER'@'%';
