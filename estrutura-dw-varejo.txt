@@ -1,0 +1,64 @@
+CREATE TABLE IF NOT EXISTS dim_tempo (
+    id_tempo INT PRIMARY KEY,
+    data DATE NOT NULL,
+    dia INT,
+    mes INT,
+    ano INT,
+    trimestre INT,
+    dia_semana VARCHAR(10)
+);
+
+CREATE TABLE IF NOT EXISTS dim_produto (
+    id_produto INT PRIMARY KEY,
+    nome_produto VARCHAR(100),
+    marca VARCHAR(50),
+    categoria VARCHAR(50),
+    unidade_medida VARCHAR(20)
+);
+
+CREATE TABLE IF NOT EXISTS dim_loja (
+    id_loja INT PRIMARY KEY,
+    nome_loja VARCHAR(50),
+    cidade VARCHAR(50),
+    estado CHAR(2)
+);
+
+CREATE TABLE IF NOT EXISTS dim_cliente (
+    id_cliente INT PRIMARY KEY,
+    nome_cliente VARCHAR(100),
+    cidade VARCHAR(50),
+    estado CHAR(2)
+);
+
+CREATE TABLE IF NOT EXISTS fato_vendas (
+    id_fato INT PRIMARY KEY AUTO_INCREMENT,
+    id_tempo INT,
+    id_produto INT,
+    id_loja INT,
+    id_cliente INT,
+    quantidade INT,
+    valor_total DECIMAL(10,2),
+    desconto_total DECIMAL(10,2),
+    forma_pagamento VARCHAR(30),
+    
+    FOREIGN KEY (id_tempo) REFERENCES dim_tempo(id_tempo),
+    FOREIGN KEY (id_produto) REFERENCES dim_produto(id_produto),
+    FOREIGN KEY (id_loja) REFERENCES dim_loja(id_loja),
+    FOREIGN KEY (id_cliente) REFERENCES dim_cliente(id_cliente)
+);
+
+CREATE TABLE IF NOT EXISTS dim_categoria (
+    id_categoria INT PRIMARY KEY,
+    nome_categoria VARCHAR(50),
+    descricao TEXT
+);
+
+-- updated version
+CREATE TABLE IF NOT EXISTS dim_produto (
+    id_produto INT PRIMARY KEY,
+    nome_produto VARCHAR(100),
+    marca VARCHAR(50),
+    id_categoria INT,
+    unidade_medida VARCHAR(20),
+    FOREIGN KEY (id_categoria) REFERENCES dim_categoria(id_categoria)
+);
