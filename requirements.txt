@@ -2,3 +2,4 @@ Flask==2.3.3
 mysql-connector-python==8.0.33
 ZODB==5.7.0
 pymongo==4.6.1
+pandas==2.2.1
