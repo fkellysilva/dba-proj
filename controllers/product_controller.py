@@ -1,82 +1,65 @@
-from flask import Blueprint, jsonify
-import mysql.connector
-from ZODB import DB
-from ZODB.FileStorage import FileStorage
-import os
-from contextlib import contextmanager
+from flask import jsonify
+from models.product import Product
+from models.mongodb_models import ProductComment, ProductImage
 
-product_bp = Blueprint('product', __name__)
+class ProductController:
+    @staticmethod
+    def get_all_products():
+        try:
+            products = Product.get_all()
+            if not products:
+                return jsonify({"message": "No products found", "data": []}), 200
+            return jsonify({"message": "Products retrieved successfully", "data": products}), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
-def get_mysql_connection():
-    return mysql.connector.connect(
-        host="mysql_db",
-        user="user",
-        password="userpassword",
-        database="VarejoBase"
-    )
+    @staticmethod
+    def get_product_by_code(code):
+        try:
+            product = Product.get_by_code(code)
+            if product:
+                return jsonify({"message": "Product found", "data": product}), 200
+            return jsonify({"error": "Product not found"}), 404
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
 
-@contextmanager
-def get_zodb_connection():
-    os.makedirs('data', exist_ok=True)
-    storage = FileStorage('data/products.fs')
-    db = DB(storage)
-    connection = db.open()
-    try:
-        yield connection
-    finally:
-        connection.close()
-        db.close()
-        storage.close()
+    @staticmethod
+    def get_product_comments(code):
+        try:
+            # First check if product exists
+            product = Product.get_by_code(code)
+            if not product:
+                return jsonify({"error": "Product not found"}), 404
 
-@product_bp.route('/', methods=['GET'])
-def listar_produtos():
-    try:
-        # Get MySQL products
-        mysql_conn = get_mysql_connection()
-        cursor = mysql_conn.cursor(dictionary=True)
-        cursor.execute("SELECT * FROM produto")
-        products = cursor.fetchall()
-        
-        return jsonify({
-            'status': 'success',
-            'data': products,
-            'total': len(products)
-        })
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500
-    finally:
-        if 'cursor' in locals():
-            cursor.close()
-        if 'mysql_conn' in locals():
-            mysql_conn.close()
-
-@product_bp.route('/<codigo_produto>', methods=['GET'])
-def detalhes_produto(codigo_produto):
-    try:
-        # Get product details from ZODB
-        with get_zodb_connection() as zodb_conn:
-            root = zodb_conn.root()
-            zodb_products = root.get('products', {})
-            
-            if codigo_produto not in zodb_products:
-                return jsonify({
-                    'status': 'error',
-                    'message': 'Produto não encontrado'
-                }), 404
-            
-            product = zodb_products[codigo_produto]
-            
+            # Get comments from MongoDB
+            comments = ProductComment.get_comments_by_product_code(code)
             return jsonify({
-                'status': 'success',
-                'data': product.to_dict()
-            })
-        
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
-            'message': str(e)
-        }), 500 
+                "message": "Comments retrieved successfully",
+                "data": {
+                    "product_code": code,
+                    "total_comments": len(comments),
+                    "comments": comments
+                }
+            }), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    @staticmethod
+    def get_product_images(code):
+        try:
+            # First check if product exists
+            product = Product.get_by_code(code)
+            if not product:
+                return jsonify({"error": "Product not found"}), 404
+
+            # Get images from MongoDB
+            images = ProductImage.get_images_by_product_code(code)
+            if not images:
+                return jsonify({"error": "No images found for this product"}), 404
+
+            return jsonify({
+                "message": "Images retrieved successfully",
+                "data": images
+            }), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500 

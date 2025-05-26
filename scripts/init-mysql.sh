@@ -12,7 +12,7 @@ mysql -u root -p"$MYSQL_ROOT_PASSWORD" <<-EOSQL
     CREATE DATABASE IF NOT EXISTS VarejoBase;
     CREATE DATABASE IF NOT EXISTS DW_Varejo;
     
-    # Grant privileges to the user for both databases
+    -- Grant privileges to the user for both databases
     GRANT ALL PRIVILEGES ON VarejoBase.* TO '$MYSQL_USER'@'%';
     GRANT ALL PRIVILEGES ON DW_Varejo.* TO '$MYSQL_USER'@'%';
     FLUSH PRIVILEGES;
